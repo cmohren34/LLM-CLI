@@ -27,7 +27,9 @@ jobs:
         go env
 
     - name: Build
-      run: go build -v ./...
+      run: |
+        cd llm-cli
+        go build -v ./...
 
     - name: Test
       run: go test -v ./...
