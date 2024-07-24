@@ -13,7 +13,7 @@ import (
 )
 
 // const OPENAI_MODEL = go_openai.GPT4Turbo1106
-const OPENAI_MODEL = "gpt-4-turbo-2024-04-09"
+const OPENAI_MODEL = "gpt-4o"
 
 // InitGPT initializes the GPT client
 func InitGPT() {

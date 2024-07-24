@@ -4,6 +4,8 @@ import (
 	"flag"
 )
 
+//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
+
 var llmClientType string
 
 func init() {
@@ -21,6 +23,8 @@ func main() {
 		InitClaude()
 	case "mistral":
 		//InitMistral()
+	case "groq":
+		InitGroq()
 	default:
 		panic("Invalid client type")
 	}

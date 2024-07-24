@@ -16,7 +16,7 @@ import (
 // claude-3-haiku-20240307
 // claude-3-sonnet-20240229
 // TODO: should probably pull this out into model class or something
-const CLAUDE_MODEL_STRING = "claude-3-opus-20240229"
+const CLAUDE_MODEL_STRING = "claude-3-5-sonnet-20240620"
 const MAX_TOKENS = 4096
 const TEMP = 0.3
 
