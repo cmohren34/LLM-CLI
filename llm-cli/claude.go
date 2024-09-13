@@ -158,7 +158,7 @@ func InitClaude() {
 			}
 
 			Println()
-			log.Printf(fmt.Sprintf(Cyan("%s Response:"), CLAUDE_MODEL_STRING))
+			log.Printf(fmt.Sprintf(Cyan("*%s Response*"), CLAUDE_MODEL_STRING))
 			if len(resp.Content) > 0 {
 				Println()
 				Printf(resp.Content[0].Text)
