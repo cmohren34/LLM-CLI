@@ -34,5 +34,9 @@ $ go run main.go # defaults to openai
 ```
 
 
+![image](https://github.com/user-attachments/assets/cbbfc1b8-ff26-4aa5-b0ed-c00e9ae308e7)
+
+
+
 
 
