@@ -24,7 +24,7 @@ func main() {
 	case "mistral":
 		//InitMistral()
 	case "groq":
-		InitGroq()
+		//InitGroq()
 	default:
 		panic("Invalid client type")
 	}

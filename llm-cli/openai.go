@@ -27,6 +27,7 @@ func InitGPT() {
 
 	request := go_openai.ChatCompletionRequest{
 		Model:       OPENAI_MODEL,
+		MaxTokens:   4096,
 		Temperature: 0.3,
 		Messages: []go_openai.ChatCompletionMessage{
 			{
