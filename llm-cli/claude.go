@@ -2,51 +2,101 @@ package main
 
 import (
 	"bufio"
-	"context"
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"time"
-
-	claude "github.com/potproject/claude-sdk-go"
 )
 
 // claude-3-opus-20240229
 // claude-3-haiku-20240307
 // claude-3-sonnet-20240229
-// TODO: should probably pull this out into model class or something
-const CLAUDE_MODEL_STRING = "claude-3-5-sonnet-20240620"
-const MAX_TOKENS = 4096
-const TEMP = 0.3
+const (
+	CLAUDE_MODEL_STRING = "claude-3-5-sonnet-20240620"
+	MAX_TOKENS          = 8192
+	TEMPERATURE         = 0.3
+	API_URL             = "https://api.anthropic.com/v1/messages"
+)
 
-// PrepareSystemMessage prepends context to the system message and returns the formatted system message
-func GetSystemMessage() string {
-	var sb strings.Builder
-
-	// Retrieve the system_message
-	system_message := os.Getenv("SYSTEM_MESSAGE")
-	if system_message == "" {
-		system_message = ""
-	}
-
-	// Append the static system message
-	// double check we are getting a clean output from env variable
-	sb.WriteString(system_message)
-
-	return sb.String()
+type Message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
-// InitClaude initializes the Claude client
+type APIRequest struct {
+	Model       string    `json:"model"`
+	MaxTokens   int       `json:"max_tokens"`
+	Temperature float64   `json:"temperature"`
+	System      string    `json:"system"`
+	Messages    []Message `json:"messages"`
+}
+
+type APIResponse struct {
+	Content []struct {
+		Text string `json:"text"`
+	} `json:"content"`
+}
+
+// this is called in openai.go as well
+func GetSystemMessage() string {
+	systemMessage := os.Getenv("SYSTEM_MESSAGE")
+	if systemMessage == "" {
+		systemMessage = "You are a helpful AI assistant."
+	}
+	return systemMessage
+}
+
+func sendRequest(client *http.Client, apiKey string, request APIRequest) (*APIResponse, error) {
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling request: %v", err)
+	}
+
+	req, err := http.NewRequest("POST", API_URL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", apiKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response body: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status code %d: %s", resp.StatusCode, string(body))
+	}
+
+	var apiResponse APIResponse
+	err = json.Unmarshal(body, &apiResponse)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshaling response: %v", err)
+	}
+
+	return &apiResponse, nil
+}
+
 func InitClaude() {
-	// start timer
 	startTime := time.Now()
 	apiKey := os.Getenv("CLAUDE_API_KEY")
 	if apiKey == "" {
 		log.Fatalln("API key not set in environment variables")
 	}
-	client := claude.NewClient(apiKey)
-	ctx := context.Background()
+	client := &http.Client{}
 
 	Println()
 	Print("Session started with ")
@@ -54,80 +104,74 @@ func InitClaude() {
 	Println("---------------------------------------------------------------")
 	Print("> ")
 
-	s := bufio.NewScanner(os.Stdin)
-	var inputLines []string
-	var conversationHistory []claude.RequestBodyMessagesMessages
+	scanner := bufio.NewScanner(os.Stdin)
+	var conversationHistory []Message
 
 	for {
-		for s.Scan() {
-			line := s.Text()
-			if line == "done" { // Signal to end the conversation
+		var userInput strings.Builder
+		for scanner.Scan() {
+			line := scanner.Text()
+			switch line {
+			case "done":
 				Println()
 				log.Println(Yellow("End of request signal received."))
 				break
-			}
-			if line == "end" { // Kill program
+			case "end":
 				duration := formatDuration(time.Since(startTime))
 				Println()
 				Println(Blue(fmt.Sprintf("Session duration: %s", duration)))
 				log.Fatalln(Red("Received end chat signal..."))
-				os.Exit(0) // exit
+				return
+			case "refresh":
+				log.Println(Yellow("\nRefreshing the conversation..."))
+				conversationHistory = nil
+				Println(Cyan("Conversation refreshed."))
+				Print("> ")
+				continue
+			default:
+				userInput.WriteString(line + "\n")
+				continue
 			}
-			if line == "refresh" { // Refresh the client
-				Println()
-				log.Println(Yellow("Refreshing the client..."))
-				client = claude.NewClient(apiKey)
-				conversationHistory = nil // Clear conversation history
-				Println(Cyan("Client refreshed."))
+			break
+		}
+
+		if userInput.Len() > 0 {
+			conversationHistory = append(conversationHistory, Message{
+				Role:    "user",
+				Content: strings.TrimSpace(userInput.String()),
+			})
+
+			fmt.Println("\nAwaiting response...")
+			request := APIRequest{
+				Model:       CLAUDE_MODEL_STRING,
+				MaxTokens:   MAX_TOKENS,
+				Temperature: TEMPERATURE,
+				System:      GetSystemMessage(),
+				Messages:    conversationHistory,
+			}
+
+			resp, err := sendRequest(client, apiKey, request)
+			if err != nil {
+				log.Print(Red("ChatCompletion error: %v\n", err))
 				Print("> ")
 				continue
 			}
-			inputLines = append(inputLines, line)
+
+			Println()
+			log.Printf(fmt.Sprintf(Cyan("%s Response:"), CLAUDE_MODEL_STRING))
+			if len(resp.Content) > 0 {
+				Println()
+				Printf(resp.Content[0].Text)
+				Println()
+				conversationHistory = append(conversationHistory, Message{
+					Role:    "assistant",
+					Content: resp.Content[0].Text,
+				})
+			} else {
+				Println("Received an empty response from the API.")
+			}
+			Println()
+			Print("> ")
 		}
-
-		userInput := strings.Join(inputLines, "\n")
-		inputLines = nil // Clear inputLines for the next request
-
-		// Add the user's message to the conversation history
-		conversationHistory = append(conversationHistory, claude.RequestBodyMessagesMessages{
-			Role:    claude.MessagesRoleUser,
-			Content: userInput,
-		})
-
-		// Concatenate all messages into a single string
-		var conversationString string
-		for _, message := range conversationHistory {
-			conversationString += message.Content + "\n"
-		}
-
-		// Prepare the request with the user's message
-		body_request := claude.RequestBodyMessages{
-			Model:       CLAUDE_MODEL_STRING,
-			System:      GetSystemMessage(),
-			MaxTokens:   MAX_TOKENS,
-			Temperature: TEMP,
-			Messages: []claude.RequestBodyMessagesMessages{
-				{
-					Role:    claude.MessagesRoleUser,
-					Content: conversationString,
-				},
-			},
-		}
-
-		Println("\nawaiting response...")
-		// Send the message and receive a response
-		response, err := client.CreateMessages(ctx, body_request)
-		if err != nil {
-			log.Print(Red("ChatCompletion error: %v\n", err))
-			continue
-		}
-
-		Println()
-		log.Println(fmt.Sprintf(Cyan("*%s Response*"), CLAUDE_MODEL_STRING))
-		Println()
-		if len(response.Content) > 0 {
-			Printf("%s\n\n", response.Content[0].Text)
-		}
-		Print("> ")
 	}
 }
