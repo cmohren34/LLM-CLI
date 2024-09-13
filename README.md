@@ -2,12 +2,6 @@
 
 command-line interface designed to use as few resources as possible because using in a browser feels very slow. Uses the APIs of OpenAI, Anthropic, and plans for future integration with Mistral and Meta's Llama-3. minimal-resource tool to communicate with these powerful language models directly from the terminal.
 
-## Features
-
-- **Multiple API Integrations**: switch between different LLM APIs like OpenAI and Claude by Anthropic.
-- **Efficiency**: Optimized for speed and minimal system resource usage.
-- **Terminal Readability**: Enhanced formatting for improved readability directly in the terminal (lol).
-
 ### Built-in Commands
 
 when using the client, you can use the following built-in commands by typing them on a new line:
