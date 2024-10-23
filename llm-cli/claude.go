@@ -17,7 +17,7 @@ import (
 // claude-3-haiku-20240307
 // claude-3-sonnet-20240229
 const (
-	CLAUDE_MODEL_STRING = "claude-3-5-sonnet-20240620"
+	CLAUDE_MODEL_STRING = "claude-3-5-sonnet-20241022"
 	MAX_TOKENS          = 8192
 	TEMPERATURE         = 0.3
 	API_URL             = "https://api.anthropic.com/v1/messages"
